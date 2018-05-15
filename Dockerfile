@@ -17,12 +17,8 @@ FROM ubuntu:14.04
 MAINTAINER Arthur Barr <arthur.barr@uk.ibm.com>
 
 RUN export DEBIAN_FRONTEND=noninteractive \
-  # The URL to download the MQ installer from in tar.gz format
-  && MQ_URL=http://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqadv/mqadv_dev80_linux_x86-64.tar.gz \
-  # The MQ packages to install
-  && MQ_PACKAGES="MQSeriesRuntime-*.rpm MQSeriesServer-*.rpm MQSeriesMsg*.rpm MQSeriesJava*.rpm MQSeriesJRE*.rpm MQSeriesGSKit*.rpm" \
   # Optional: Update the command prompt
-  && echo "mq:8.0" > /etc/debian_chroot \
+  && echo "mq:7.5" > /etc/debian_chroot \
   # Install additional packages required by this install process and the runtime scripts
   && apt-get update -y \
   && apt-get install -y --no-install-recommends \
@@ -41,28 +37,41 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     rpm \
     sed \
     tar \
-    util-linux \
-  # Download and extract the MQ installation files
+    util-linux
+
+# Download and extract the MQ installation files
+# The URL to download the MQ installer from in tar.gz format
+RUN MQ_URL=http://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqadv/mqadv_dev75_linux_x86-64.tar.gz \
   && mkdir -p /tmp/mq \
   && cd /tmp/mq \
   && curl -LO $MQ_URL \
-  && tar -zxvf ./*.tar.gz \
-  # Recommended: Create the mqm user ID with a fixed UID and group, so that the file permissions work between different images
-  && groupadd --gid 1000 mqm \
+  && tar -zxvf ./*.tar.gz
+
+# Recommended: Create the mqm user ID with a fixed UID and group, so that the file permissions work between different images
+RUN groupadd --gid 1000 mqm \
   && useradd --uid 1000 --gid mqm --home-dir /var/mqm mqm \
-  && usermod -G mqm root \
-  && cd /tmp/mq/MQServer \
+  && usermod -G mqm root
+
+# The MQ packages to install
+RUN MQ_PACKAGES="MQSeriesRuntime-*.rpm MQSeriesServer-*.rpm MQSeriesMsg*.rpm MQSeriesJava*.rpm MQSeriesJRE*.rpm MQSeriesGSKit*.rpm MQSeriesSamples*.rpm" \
+  && cd /tmp/mq \
   # Accept the MQ license
   && ./mqlicense.sh -text_only -accept \
   # Install MQ using the RPM packages
-  && rpm -ivh --force-debian $MQ_PACKAGES \
-  # Recommended: Set the default MQ installation (makes the MQ commands available on the PATH)
-  && /opt/mqm/bin/setmqinst -p /opt/mqm -i \
-  # Clean up all the downloaded files
-  && rm -rf /tmp/mq
+  && rpm -ivh --force-debian --prefix=/opt/mqm $MQ_PACKAGES
+
+# W/A for "AMQ6294: Failed to create symbolic link with the name '/usr/lib64/libmqmzf.so'"
+RUN mkdir -p /usr/lib64
+
+# Run MQ setup
+# Recommended: Set the default MQ installation (makes the MQ commands available on the PATH)
+RUN /opt/mqm/bin/setmqinst -p /opt/mqm -i
+
+# Clean up all the downloaded files
+RUN rm -rf /tmp/mq
 
 COPY *.sh /usr/local/bin/
-COPY *.mqsc /etc/mqm/
+COPY --chown=mqm:mqm *.mqsc /etc/mqm/
 
 # Support the latest functional cmdlevel by default
 ENV MQ_QMGR_CMDLEVEL=802

@@ -71,7 +71,8 @@ RUN /opt/mqm/bin/setmqinst -p /opt/mqm -i
 RUN rm -rf /tmp/mq
 
 COPY *.sh /usr/local/bin/
-COPY --chown=mqm:mqm *.mqsc /etc/mqm/
+COPY *.mqsc /etc/mqm/
+RUN chown mqm:mqm /etc/mqm/*.mqsc
 
 # Support the latest functional cmdlevel by default
 ENV MQ_QMGR_CMDLEVEL=802
